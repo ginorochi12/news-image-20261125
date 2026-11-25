@@ -1,46 +1,33 @@
-#!/usr/bin/env python3
-"""Emit the 25 November 2026 front page for the make.fun harness.
+"""Copy the 25 November 2026 news image into the harness output folder.
 
-The entry image lives beside this script as entry.png. This program makes
-sure the file really is a PNG (magic bytes plus an IHDR chunk), then hands
-an exact copy to the harness output directory so the judge sees the same
-pixels on every run. It touches no network and writes nothing else.
+The repository holds the finished front page as entry.png. This program
+only checks that the file really is a PNG and places an identical copy at
+$MAKEFUN_OUTPUT_DIR/entry.png (or /output/entry.png when that variable is
+not set). It never touches the network and never changes the bytes.
 """
 
-import hashlib
 import os
-import shutil
 import sys
 
-PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
-HERE = os.path.dirname(os.path.abspath(__file__))
+
+MAGIC_BYTES = (0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)
 
 
-def fail(message):
-    sys.stderr.write("main.py: " + message + "\n")
-    return 1
-
-
-def main():
-    picture = os.path.join(HERE, "entry.png")
-    try:
-        handle = open(picture, "rb")
-    except OSError as exc:
-        return fail("cannot open entry.png (%s)" % exc)
-    with handle:
-        head = handle.read(33)
-    if head[:8] != PNG_MAGIC:
-        return fail("entry.png does not start with the PNG magic bytes")
-    if head[12:16] != b"IHDR":
-        return fail("entry.png has no IHDR chunk where one belongs")
-    out_dir = os.environ.get("MAKEFUN_OUTPUT_DIR") or "/output"
-    os.makedirs(out_dir, exist_ok=True)
-    destination = os.path.join(out_dir, "entry.png")
-    shutil.copyfile(picture, destination)
-    digest = hashlib.sha256(open(destination, "rb").read()).hexdigest()
-    sys.stdout.write("wrote %s sha256=%s\n" % (destination, digest))
+def publish() -> int:
+    here = os.path.dirname(os.path.abspath(__file__))
+    source = os.path.join(here, "entry.png")
+    with open(source, "rb") as handle:
+        data = handle.read()
+    if len(data) < 8 or tuple(data[:8]) != MAGIC_BYTES:
+        print("entry.png: not a PNG file", file=sys.stderr)
+        return 1
+    outdir = os.environ.get("MAKEFUN_OUTPUT_DIR") or "/output"
+    os.makedirs(outdir, exist_ok=True)
+    target = os.path.join(outdir, "entry.png")
+    with open(target, "wb") as handle:
+        handle.write(data)
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(publish())
