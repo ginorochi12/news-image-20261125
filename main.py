@@ -1,33 +1,43 @@
-"""Copy the 25 November 2026 news image into the harness output folder.
+"""news-image-20261125 entrypoint.
 
-The repository holds the finished front page as entry.png. This program
-only checks that the file really is a PNG and places an identical copy at
-$MAKEFUN_OUTPUT_DIR/entry.png (or /output/entry.png when that variable is
-not set). It never touches the network and never changes the bytes.
+The bounty entry is a single picture, entry.png, stored beside this
+file. This script only verifies the picture is a genuine PNG and
+copies it byte for byte into the harness output directory.
 """
 
 import os
 import sys
 
+MAGIC = bytes([137, 80, 78, 71, 13, 10, 26, 10])
 
-MAGIC_BYTES = (0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)
+
+def load_picture(path):
+    with open(path, "rb") as stream:
+        payload = stream.read()
+    if payload[: len(MAGIC)] != MAGIC:
+        raise ValueError("not a PNG file")
+    if len(payload) < 16 or payload[12:16] != b"IHDR":
+        raise ValueError("PNG is missing its IHDR chunk")
+    return payload
 
 
-def publish() -> int:
-    here = os.path.dirname(os.path.abspath(__file__))
-    source = os.path.join(here, "entry.png")
-    with open(source, "rb") as handle:
-        data = handle.read()
-    if len(data) < 8 or tuple(data[:8]) != MAGIC_BYTES:
-        print("entry.png: not a PNG file", file=sys.stderr)
+def main():
+    script_dir = os.path.dirname(os.path.realpath(__file__))
+    picture_path = os.path.join(script_dir, "entry.png")
+    if not os.path.isfile(picture_path):
+        print("entry.png not found next to main.py", file=sys.stderr)
         return 1
-    outdir = os.environ.get("MAKEFUN_OUTPUT_DIR") or "/output"
-    os.makedirs(outdir, exist_ok=True)
-    target = os.path.join(outdir, "entry.png")
-    with open(target, "wb") as handle:
-        handle.write(data)
+    try:
+        payload = load_picture(picture_path)
+    except (OSError, ValueError) as problem:
+        print("entry.png failed validation: %s" % problem, file=sys.stderr)
+        return 1
+    out_dir = os.environ.get("MAKEFUN_OUTPUT_DIR") or "/output"
+    os.makedirs(out_dir, exist_ok=True)
+    with open(os.path.join(out_dir, "entry.png"), "wb") as stream:
+        stream.write(payload)
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(publish())
+    sys.exit(main())
